@@ -3,6 +3,7 @@
 # Release notes
 ## Upcoming release for Stardew Valley 1.6
 * Updated for Stardew Valley 1.6.
+* You can now till the campfire wood pile.
 
 ## Upcoming release
 * Fixed some random events happening less often on the small beach farm.
