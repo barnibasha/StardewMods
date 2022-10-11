@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Netcode;
 using StardewValley;
 using StardewValley.Buildings;
+using StardewValley.Inventories;
 using StardewValley.Objects;
 using SObject = StardewValley.Object;
 
@@ -137,7 +137,7 @@ namespace Pathoschild.Stardew.Automate.Framework.Machines.Buildings
         /// <summary>Get whether the mill's input bin is full.</summary>
         private bool InputFull()
         {
-            NetObjectList<Item?>? slots = this.Input.items;
+            Inventory slots = this.Input.items;
 
             // free slots
             if (slots.Count < Chest.capacity)
