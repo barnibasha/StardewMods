@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -14,6 +15,7 @@ using Pathoschild.Stardew.Common.Utilities;
 using StardewModdingAPI;
 using StardewModdingAPI.Framework.ContentManagers;
 using StardewValley;
+using xTile;
 
 namespace ContentPatcher.Framework.Commands.Commands
 {
@@ -111,32 +113,81 @@ namespace ContentPatcher.Framework.Commands.Commands
             Directory.CreateDirectory(Path.GetDirectoryName(fullTargetPath)!);
 
             // export
-            if (asset is Texture2D texture)
-            {
-                fullTargetPath += ".png";
-
-                texture = this.UnPremultiplyTransparency(texture);
-                using (Stream stream = File.Create(fullTargetPath))
-                    texture.SaveAsPng(stream, texture.Width, texture.Height);
-
+            if (this.TryExportRaw(asset, ref fullTargetPath, out string? error))
                 this.Monitor.Log($"Exported asset '{assetName}' to '{fullTargetPath}'.", LogLevel.Info);
-            }
-            else if (this.IsDataAsset(asset))
-            {
-                fullTargetPath += ".json";
-
-                File.WriteAllText(fullTargetPath, JsonConvert.SerializeObject(asset, Formatting.Indented));
-
-                this.Monitor.Log($"Exported asset '{assetName}' to '{fullTargetPath}'.", LogLevel.Info);
-            }
             else
-                this.Monitor.Log($"Can't export asset '{assetName}' of type {asset?.GetType().FullName ?? "null"}, expected image or data.", LogLevel.Error);
+                this.Monitor.Log($"Failed exporting '{assetName}': {error}.", LogLevel.Error);
         }
 
 
         /*********
         ** Private methods
         *********/
+        /// <summary>Try to export an arbitrary asset to disk.</summary>
+        /// <param name="asset">The asset data to export.</param>
+        /// <param name="path">The absolute path to which to write the asset, without the file extension. The file extension will be added if it's exported correctly.</param>
+        /// <param name="error">An error phrase indicating why the asset couldn't be exported, if applicable.</param>
+        private bool TryExportRaw(object? asset, ref string path, [NotNullWhen(false)] out string? error)
+        {
+            error = null;
+
+            switch (asset)
+            {
+                case null:
+                    error = "the asset could not be loaded";
+                    return false;
+
+                case Map:
+                    error = "can't export map assets";
+                    return false;
+
+                case Texture2D texture:
+                    path += ".png";
+                    this.ExportTexture(texture, path);
+                    return true;
+
+                case IRawTextureData textureData:
+                    path += ".png";
+                    this.ExportRawTexture(textureData, path);
+                    return true;
+
+                default:
+                    path += ".json";
+                    this.ExportData(asset, path);
+                    File.WriteAllText(path, JsonConvert.SerializeObject(asset, Formatting.Indented));
+                    return true;
+            }
+        }
+
+        /// <summary>Export a texture asset to disk.</summary>
+        /// <param name="image">The asset to export.</param>
+        /// <param name="path">The absolute path to which to write the asset.</param>
+        private void ExportRawTexture(IRawTextureData image, string path)
+        {
+            using Texture2D exported = new Texture2D(Game1.graphics.GraphicsDevice, image.Width, image.Height);
+            exported.SetData(image.Data);
+            this.ExportTexture(exported, path);
+        }
+
+        /// <summary>Export a raw texture asset to disk.</summary>
+        /// <param name="image">The asset to export.</param>
+        /// <param name="path">The absolute path to which to write the asset.</param>
+        private void ExportTexture(Texture2D image, string path)
+        {
+            using Texture2D exported = this.UnPremultiplyTransparency(image);
+            using Stream stream = File.Create(path);
+            exported.SaveAsPng(stream, exported.Width, exported.Height);
+        }
+
+
+        /// <summary>Export a data asset to disk.</summary>
+        /// <param name="data">The asset to export.</param>
+        /// <param name="path">The absolute path to which to write the asset.</param>
+        private void ExportData(object data, string path)
+        {
+            File.WriteAllText(path, JsonConvert.SerializeObject(data, Formatting.Indented));
+        }
+
         /// <summary>Get the types matching a name, if any.</summary>
         /// <param name="name">The type name.</param>
         private Type[] TryGetTypes(string? name)
